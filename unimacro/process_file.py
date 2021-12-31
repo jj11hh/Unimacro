@@ -9,35 +9,47 @@ from unimacro import constants
 def make_regex(tag):
     return re.compile("^\s*" + re.escape(tag))
 
-def make_generated(codeline, strip=False):
-    if not strip:
-        yield DEFAULT_TAG_BEGIN + TAG_GENERATED + INFO_GENERATED + "\n"
-    yield str(codeline) + "\n"
-    if not strip:
-        yield DEFAULT_TAG_END + TAG_GENERATED + INFO_GENERATED + "\n"
-
 def process_file(io_stream :TextIOBase, tag_begin=DEFAULT_TAG_BEGIN, tag_end=DEFAULT_TAG_END, strip=False, **kwargs):
     current_tag = None
-    emitted_str = None
+    emitted_str = ""
     process_fn = None
     buffered_str = []
+    
+    def get_indent():
+        return eval_scope["INDENT"]
+    
+    def set_indent(indent):
+        eval_scope["INDENT"] = indent
+    
+    def make_generated(codeline, strip=False):
+        if not strip:
+            yield get_indent() + tag_begin + TAG_GENERATED + INFO_GENERATED + "\n"
+        yield get_indent() + str(codeline) + "\n"
+        if not strip:
+            yield get_indent() + tag_end + TAG_GENERATED + INFO_GENERATED + "\n"
 
     def emit(s):
         nonlocal emitted_str
-        emitted_str = str(s)
+        emitted_str += get_indent() + str(s) + "\n"
         
     def set_var(var_name, var_value):
         eval_scope[var_name] = var_value
         
     def set_var_proc(var_name):
         return partial(set_var, var_name)
+    
+    def use_proc(proc):
+        proc(eval_scope)
         
     eval_scope = {
-        "emit": emit,
-        "set_var": set_var,
-        "set_var_proc": set_var_proc,
-        "gather_block": set_var_proc,
+        "EMIT": emit,
+        "SET": set_var,
+        "STORE_BLOCK": set_var_proc,
+        "USE": use_proc,
+        "INDENT": "",
     }
+    
+    eval_scope["ENV"] = eval_scope
     
     if kwargs:
         eval_scope.update(kwargs)
@@ -55,14 +67,16 @@ def process_file(io_stream :TextIOBase, tag_begin=DEFAULT_TAG_BEGIN, tag_end=DEF
                 if not strip: yield line
             elif make_regex(tag_begin + TAG_SKIP).match(line):
                 if not strip: yield line
+
             # find end of current tag
             elif make_regex(tag_end).match(line):
+                set_indent(re.match(r"^\s*", line).group())
                 if current_tag == TAG_GENERATED:
                     buffered_str = []
                     # just ignore, dont yield
                 elif current_tag == TAG_EXEC:
                     exec("\n".join(buffered_str), eval_scope)
-                    if not strip: yield line
+                    if not strip: yield get_indent() + line
                 elif current_tag == TAG_PROCESS:
                     retval = process_fn("\n".join(buffered_str))
                     if retval is not None:
@@ -78,9 +92,9 @@ def process_file(io_stream :TextIOBase, tag_begin=DEFAULT_TAG_BEGIN, tag_end=DEF
                 if current_tag != TAG_GENERATED and not strip:
                     yield line
             
-            if emitted_str is not None:
+            if len(emitted_str) > 0:
                 yield from make_generated(emitted_str, strip)
-                emitted_str = None
+                emitted_str = ""
                 
             continue
         
@@ -110,6 +124,7 @@ def process_file(io_stream :TextIOBase, tag_begin=DEFAULT_TAG_BEGIN, tag_end=DEF
         # eval tag is always single line
         match_eval = make_regex(tag_begin + TAG_EVAL).match(line)
         if match_eval:
+            set_indent(re.match(r"^\s*", line).group())
             end_pos = match_eval.end()
             code_to_eval = line[end_pos:].strip()
             result = str(eval(code_to_eval, eval_scope))
@@ -119,14 +134,14 @@ def process_file(io_stream :TextIOBase, tag_begin=DEFAULT_TAG_BEGIN, tag_end=DEF
         
         match_exec = make_regex(tag_begin + TAG_EXEC_INLINE).match(line)
         if match_exec:
+            set_indent(re.match(r"^\s*", line).group())
             if not strip: yield line
             end_pos = match_exec.end()
             code_to_exec = line[end_pos:].strip()
             exec(code_to_exec, eval_scope)
-            if emitted_str is not None:
+            if len(emitted_str) > 0:
                 yield from make_generated(emitted_str, strip)
-                emitted_str = None
-
+                emitted_str = ""
             continue
         
         # no multiline tag found
@@ -135,6 +150,5 @@ def process_file(io_stream :TextIOBase, tag_begin=DEFAULT_TAG_BEGIN, tag_end=DEF
     if current_tag is not None:
         raise ValueError("Tag not closed: " + current_tag)
 
-    if emitted_str is not None:
+    if len(emitted_str) > 0:
         yield from make_generated(emitted_str, strip)
-        

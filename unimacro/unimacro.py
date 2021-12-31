@@ -34,7 +34,7 @@ def main():
         
     if args.update:
         # replace the original file with the temp file
-        os.replace(args.input + ".tmp", args.input[0])
+        os.replace(args.input + ".tmp", args.input)
 
 
 if __name__ == "__main__":
