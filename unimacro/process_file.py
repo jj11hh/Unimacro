@@ -4,16 +4,19 @@ from functools import partial
 
 from .constants import *
 from unimacro import constants
+
  
 def make_regex(tag):
     return re.compile("^\s*" + re.escape(tag))
 
-def make_generated(codeline):
-    yield DEFAULT_TAG_BEGIN + TAG_GENERATED + "\n"
+def make_generated(codeline, strip=False):
+    if not strip:
+        yield DEFAULT_TAG_BEGIN + TAG_GENERATED + INFO_GENERATED + "\n"
     yield str(codeline) + "\n"
-    yield DEFAULT_TAG_END + TAG_GENERATED + "\n"
+    if not strip:
+        yield DEFAULT_TAG_END + TAG_GENERATED + INFO_GENERATED + "\n"
 
-def process_file(io_stream :TextIOBase, tag_begin=DEFAULT_TAG_BEGIN, tag_end=DEFAULT_TAG_END):
+def process_file(io_stream :TextIOBase, tag_begin=DEFAULT_TAG_BEGIN, tag_end=DEFAULT_TAG_END, strip=False):
     current_tag = None
     emitted_str = None
     process_fn = None
@@ -45,9 +48,9 @@ def process_file(io_stream :TextIOBase, tag_begin=DEFAULT_TAG_BEGIN, tag_end=DEF
             if match_continue:
                 stripped = line[match_continue.end():]
                 buffered_str.append(stripped)
-                yield line
+                if not strip: yield line
             elif make_regex(tag_begin + TAG_SKIP).match(line):
-                yield line
+                if not strip: yield line
             # find end of current tag
             elif make_regex(tag_end).match(line):
                 if current_tag == TAG_GENERATED:
@@ -55,24 +58,24 @@ def process_file(io_stream :TextIOBase, tag_begin=DEFAULT_TAG_BEGIN, tag_end=DEF
                     # just ignore, dont yield
                 elif current_tag == TAG_EXEC:
                     exec("\n".join(buffered_str), eval_scope)
-                    yield line
+                    if not strip: yield line
                 elif current_tag == TAG_PROCESS:
                     retval = process_fn("\n".join(buffered_str))
                     if retval is not None:
                         emit(retval)
-                    yield line
+                    if not strip: yield line
                 else:
                     # unknown tag
-                    yield line
+                    if not strip: yield line
                 current_tag = None
             else:
                 # we are in the body of a tag
                 buffered_str.append(line)
-                if current_tag != TAG_GENERATED:
+                if current_tag != TAG_GENERATED and not strip:
                     yield line
             
             if emitted_str is not None:
-                yield from make_generated(emitted_str)
+                yield from make_generated(emitted_str, strip)
                 emitted_str = None
                 
             continue
@@ -88,7 +91,7 @@ def process_file(io_stream :TextIOBase, tag_begin=DEFAULT_TAG_BEGIN, tag_end=DEF
                 current_tag = tag
                 buffered_str = []
                 
-                if tag != TAG_GENERATED:
+                if tag != TAG_GENERATED and not strip:
                     yield line
                     
                 if tag == TAG_PROCESS:
@@ -106,18 +109,18 @@ def process_file(io_stream :TextIOBase, tag_begin=DEFAULT_TAG_BEGIN, tag_end=DEF
             end_pos = match_eval.end()
             code_to_eval = line[end_pos:].strip()
             result = str(eval(code_to_eval, eval_scope))
-            yield line
-            yield from make_generated(result)
+            if not strip: yield line
+            yield from make_generated(result, strip)
             continue
         
         match_exec = make_regex(tag_begin + TAG_EXEC_INLINE).match(line)
         if match_exec:
-            yield line
+            if not strip: yield line
             end_pos = match_exec.end()
             code_to_exec = line[end_pos:].strip()
             exec(code_to_exec, eval_scope)
             if emitted_str is not None:
-                yield from make_generated(emitted_str)
+                yield from make_generated(emitted_str, strip)
                 emitted_str = None
 
             continue
@@ -129,6 +132,5 @@ def process_file(io_stream :TextIOBase, tag_begin=DEFAULT_TAG_BEGIN, tag_end=DEF
         raise ValueError("Tag not closed: " + current_tag)
 
     if emitted_str is not None:
-        yield from make_generated(emitted_str)
+        yield from make_generated(emitted_str, strip)
         
- 
