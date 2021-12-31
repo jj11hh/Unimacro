@@ -16,7 +16,7 @@ def make_generated(codeline, strip=False):
     if not strip:
         yield DEFAULT_TAG_END + TAG_GENERATED + INFO_GENERATED + "\n"
 
-def process_file(io_stream :TextIOBase, tag_begin=DEFAULT_TAG_BEGIN, tag_end=DEFAULT_TAG_END, strip=False):
+def process_file(io_stream :TextIOBase, tag_begin=DEFAULT_TAG_BEGIN, tag_end=DEFAULT_TAG_END, strip=False, **kwargs):
     current_tag = None
     emitted_str = None
     process_fn = None
@@ -36,7 +36,11 @@ def process_file(io_stream :TextIOBase, tag_begin=DEFAULT_TAG_BEGIN, tag_end=DEF
         "emit": emit,
         "set_var": set_var,
         "set_var_proc": set_var_proc,
+        "gather_block": set_var_proc,
     }
+    
+    if kwargs:
+        eval_scope.update(kwargs)
 
     for line in io_stream:
         if line[-1] != "\n":
