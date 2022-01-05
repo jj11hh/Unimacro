@@ -21,10 +21,10 @@ def process_file(io_stream :TextIOBase, tag_begin=DEFAULT_TAG_BEGIN, tag_end=DEF
     def set_indent(indent):
         eval_scope["INDENT"] = indent
     
-    def make_generated(codeline, strip=False):
+    def make_generated(codelines, strip=False):
         if not strip:
             yield get_indent() + tag_begin + TAG_GENERATED + INFO_GENERATED + "\n"
-        yield get_indent() + str(codeline) + "\n"
+        yield str(codelines)
         if not strip:
             yield get_indent() + tag_end + TAG_GENERATED + INFO_GENERATED + "\n"
 
@@ -76,7 +76,7 @@ def process_file(io_stream :TextIOBase, tag_begin=DEFAULT_TAG_BEGIN, tag_end=DEF
                     # just ignore, dont yield
                 elif current_tag == TAG_EXEC:
                     exec("".join(buffered_str), eval_scope)
-                    if not strip: yield get_indent() + line
+                    if not strip: yield line
                 elif current_tag == TAG_PROCESS:
                     retval = process_fn("".join(buffered_str))
                     if retval is not None:
@@ -128,8 +128,10 @@ def process_file(io_stream :TextIOBase, tag_begin=DEFAULT_TAG_BEGIN, tag_end=DEF
             end_pos = match_eval.end()
             code_to_eval = line[end_pos:].strip()
             result = str(eval(code_to_eval, eval_scope))
+            emit(result)
             if not strip: yield line
-            yield from make_generated(result, strip)
+            yield from make_generated(emitted_str, strip)
+            emitted_str = ""
             continue
         
         match_exec = make_regex(tag_begin + TAG_EXEC_INLINE).match(line)
