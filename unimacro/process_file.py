@@ -75,10 +75,10 @@ def process_file(io_stream :TextIOBase, tag_begin=DEFAULT_TAG_BEGIN, tag_end=DEF
                     buffered_str = []
                     # just ignore, dont yield
                 elif current_tag == TAG_EXEC:
-                    exec("\n".join(buffered_str), eval_scope)
+                    exec("".join(buffered_str), eval_scope)
                     if not strip: yield get_indent() + line
                 elif current_tag == TAG_PROCESS:
-                    retval = process_fn("\n".join(buffered_str))
+                    retval = process_fn("".join(buffered_str))
                     if retval is not None:
                         emit(retval)
                     if not strip: yield line
