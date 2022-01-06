@@ -9,7 +9,7 @@ except ImportError:
 setup(
     name="unimacro",
     version="0.0.1",
-    description="Unimacro",
+    description="A simple code generate tool written in Python",
     author="Jiang Yiheng",
     author_email="jiangyiheng@corp.netease.com",
     python_requires=">=3.6",
