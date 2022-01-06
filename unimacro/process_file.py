@@ -3,7 +3,6 @@ from io import TextIOBase
 from functools import partial
 
 from .constants import *
-from unimacro import constants
 
  
 def make_regex(tag):
